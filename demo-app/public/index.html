@@ -1,0 +1,502 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Billing Console — Invoice Summary</title>
+  <style>
+    :root {
+      --bg: #0f1117;
+      --surface: #1a1d27;
+      --surface-2: #242836;
+      --border: #2e3345;
+      --text: #e8eaed;
+      --muted: #8b92a8;
+      --accent: #6c8cff;
+      --accent-dim: #4a62b3;
+      --success: #3dd68c;
+      --error: #ff6b6b;
+      --warning: #ffc857;
+      --radius: 10px;
+      --font: "Inter", system-ui, -apple-system, sans-serif;
+      --mono: "JetBrains Mono", "Fira Code", ui-monospace, monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    header {
+      border-bottom: 1px solid var(--border);
+      padding: 1.25rem 2rem;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--surface);
+    }
+
+    header h1 {
+      font-size: 1.1rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    header .badge {
+      font-size: 0.75rem;
+      padding: 0.25rem 0.6rem;
+      border-radius: 999px;
+      background: var(--surface-2);
+      color: var(--muted);
+      border: 1px solid var(--border);
+    }
+
+    main {
+      max-width: 1100px;
+      margin: 0 auto;
+      padding: 2rem;
+      display: grid;
+      gap: 1.5rem;
+    }
+
+    .invoice-picker {
+      display: flex;
+      gap: 0.75rem;
+      flex-wrap: wrap;
+    }
+
+    .invoice-btn {
+      flex: 1;
+      min-width: 200px;
+      padding: 1rem 1.25rem;
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      background: var(--surface);
+      color: var(--text);
+      cursor: pointer;
+      text-align: left;
+      transition: border-color 0.15s, background 0.15s;
+    }
+
+    .invoice-btn:hover { border-color: var(--accent-dim); background: var(--surface-2); }
+    .invoice-btn.active { border-color: var(--accent); background: #1e2540; }
+    .invoice-btn .id { font-weight: 600; font-size: 0.95rem; }
+    .invoice-btn .desc { font-size: 0.8rem; color: var(--muted); margin-top: 0.2rem; }
+    .invoice-btn .tag {
+      display: inline-block;
+      margin-top: 0.5rem;
+      font-size: 0.7rem;
+      padding: 0.15rem 0.45rem;
+      border-radius: 4px;
+    }
+    .tag.ok { background: #1a3d2e; color: var(--success); }
+    .tag.err { background: #3d1a1a; color: var(--error); }
+
+    .panel {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      overflow: hidden;
+    }
+
+    .panel-header {
+      padding: 0.85rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      font-size: 0.8rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      color: var(--muted);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+
+    .panel-body { padding: 1.25rem; }
+
+    .summary-grid {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 1rem;
+    }
+
+    .stat {
+      background: var(--surface-2);
+      border-radius: 8px;
+      padding: 1rem;
+    }
+
+    .stat .label { font-size: 0.75rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.05em; }
+    .stat .value { font-size: 1.5rem; font-weight: 600; margin-top: 0.25rem; font-variant-numeric: tabular-nums; }
+
+    .error-state {
+      background: #2a1515;
+      border: 1px solid #5c2828;
+      border-radius: 8px;
+      padding: 1.25rem;
+    }
+
+    .error-state h3 { color: var(--error); font-size: 0.95rem; margin-bottom: 0.5rem; }
+    .error-state pre {
+      font-family: var(--mono);
+      font-size: 0.75rem;
+      color: #ffb4b4;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 180px;
+      overflow-y: auto;
+    }
+
+    .actions { margin-top: 1rem; display: flex; gap: 0.75rem; flex-wrap: wrap; }
+
+    button.primary {
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 0.65rem 1.1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+    button.primary:hover { background: var(--accent-dim); }
+    button.primary:disabled { opacity: 0.5; cursor: not-allowed; }
+
+    button.secondary {
+      background: transparent;
+      color: var(--muted);
+      border: 1px solid var(--border);
+      padding: 0.65rem 1.1rem;
+      border-radius: 8px;
+      font-size: 0.85rem;
+      cursor: pointer;
+    }
+    button.secondary:hover { border-color: var(--muted); color: var(--text); }
+
+    .agent-panel { display: none; }
+    .agent-panel.visible { display: block; }
+
+    .status-pill {
+      font-size: 0.7rem;
+      padding: 0.2rem 0.55rem;
+      border-radius: 999px;
+      font-weight: 500;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+    }
+    .status-pill.received { background: #2a2a3d; color: #a0a8ff; }
+    .status-pill.triaged { background: #2a3d2a; color: var(--success); }
+    .status-pill.remediating { background: #3d3520; color: var(--warning); }
+    .status-pill.completed { background: #1a3d2e; color: var(--success); }
+    .status-pill.error { background: #3d1a1a; color: var(--error); }
+
+    .plan-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+      gap: 0.75rem;
+      margin-bottom: 1rem;
+    }
+
+    .plan-item {
+      background: var(--surface-2);
+      border-radius: 6px;
+      padding: 0.75rem;
+      font-size: 0.8rem;
+    }
+    .plan-item .k { color: var(--muted); font-size: 0.7rem; text-transform: uppercase; }
+    .plan-item .v { margin-top: 0.15rem; font-weight: 500; }
+
+    .log-feed {
+      font-family: var(--mono);
+      font-size: 0.72rem;
+      max-height: 200px;
+      overflow-y: auto;
+      background: #0d0f14;
+      border-radius: 6px;
+      padding: 0.75rem;
+      border: 1px solid var(--border);
+    }
+
+    .log-line { padding: 0.15rem 0; color: var(--muted); }
+    .log-line .ts { color: #555b70; margin-right: 0.5rem; }
+    .log-line.info { color: #8b92a8; }
+    .log-line.triaged { color: var(--success); }
+    .log-line.remediating { color: var(--warning); }
+    .log-line.completed { color: var(--success); }
+    .log-line.error { color: var(--error); }
+
+    .prompt-block {
+      margin-top: 1rem;
+    }
+
+    .prompt-block summary {
+      cursor: pointer;
+      font-size: 0.8rem;
+      color: var(--accent);
+      user-select: none;
+    }
+
+    .prompt-block pre {
+      margin-top: 0.5rem;
+      font-family: var(--mono);
+      font-size: 0.7rem;
+      background: #0d0f14;
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 0.75rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      max-height: 300px;
+      overflow-y: auto;
+      color: #c5cad6;
+    }
+
+    .context-list {
+      font-size: 0.8rem;
+      color: var(--muted);
+      margin-top: 0.75rem;
+    }
+    .context-list li { margin-left: 1.2rem; margin-bottom: 0.25rem; }
+
+    .empty { color: var(--muted); font-size: 0.9rem; text-align: center; padding: 2rem; }
+
+    .loading { opacity: 0.6; pointer-events: none; }
+  </style>
+</head>
+<body>
+  <header>
+    <h1>Billing Console</h1>
+    <span class="badge" id="mode-badge">loading…</span>
+  </header>
+
+  <main>
+    <section>
+      <div class="invoice-picker">
+        <button class="invoice-btn active" data-id="INV-1001" id="btn-1001">
+          <div class="id">INV-1001</div>
+          <div class="desc">Northwind Traders — annual seats + support</div>
+          <span class="tag ok">Healthy</span>
+        </button>
+        <button class="invoice-btn" data-id="INV-1002" id="btn-1002">
+          <div class="id">INV-1002</div>
+          <div class="desc">Contoso Ltd. — seats + onboarding</div>
+          <span class="tag err">Known bug</span>
+        </button>
+      </div>
+    </section>
+
+    <section class="panel" id="invoice-panel">
+      <div class="panel-header">
+        <span>Invoice Summary</span>
+        <span id="fetch-status"></span>
+      </div>
+      <div class="panel-body" id="invoice-body">
+        <p class="empty">Select an invoice to load its summary.</p>
+      </div>
+    </section>
+
+    <section class="panel agent-panel" id="agent-panel">
+      <div class="panel-header">
+        <span>Incident Pipeline</span>
+        <span class="status-pill received" id="agent-status">—</span>
+      </div>
+      <div class="panel-body" id="agent-body"></div>
+    </section>
+  </main>
+
+  <script>
+    const ORCHESTRATOR_URL = window.ORCHESTRATOR_URL || "http://localhost:3000";
+    let currentInvoice = "INV-1001";
+    let lastError = null;
+    let pollTimer = null;
+    let activeIncidentId = null;
+
+    const fmt = (cents) => new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+
+    async function checkMode() {
+      try {
+        const res = await fetch(`${ORCHESTRATOR_URL}/healthz`);
+        const data = await res.json();
+        document.getElementById("mode-badge").textContent =
+          data.dryRun ? "DRY RUN — no credits spent" : "LIVE — cloud agents enabled";
+      } catch {
+        document.getElementById("mode-badge").textContent = "Orchestrator offline";
+      }
+    }
+
+    function setActiveBtn(id) {
+      document.querySelectorAll(".invoice-btn").forEach((b) => b.classList.toggle("active", b.dataset.id === id));
+    }
+
+    function renderSummary(data) {
+      return `
+        <div class="summary-grid">
+          <div class="stat"><div class="label">Subtotal</div><div class="value">${fmt(data.subtotalCents)}</div></div>
+          <div class="stat"><div class="label">Discount</div><div class="value">${fmt(data.discountCents)}</div></div>
+          <div class="stat"><div class="label">Total</div><div class="value">${fmt(data.totalCents)}</div></div>
+        </div>
+        <p style="margin-top:1rem;font-size:0.8rem;color:var(--muted)">${data.invoiceId} · ${data.currency}</p>
+      `;
+    }
+
+    function renderError(body) {
+      return `
+        <div class="error-state">
+          <h3>${body.error}: ${body.message}</h3>
+          <pre>${body.culprit}\n\n${(body.stack || "").split("\n").slice(0, 6).join("\n")}</pre>
+        </div>
+        <div class="actions">
+          <button class="primary" id="fire-agent-btn">Fire remediation agent</button>
+          <button class="secondary" id="retry-btn">Retry fetch</button>
+        </div>
+      `;
+    }
+
+    async function loadInvoice(id) {
+      currentInvoice = id;
+      setActiveBtn(id);
+      lastError = null;
+      const body = document.getElementById("invoice-body");
+      const status = document.getElementById("fetch-status");
+      const panel = document.getElementById("invoice-panel");
+      panel.classList.add("loading");
+      status.textContent = "fetching…";
+
+      try {
+        const res = await fetch(`/api/invoices/${id}/summary`);
+        const data = await res.json();
+        if (res.ok) {
+          body.innerHTML = renderSummary(data);
+          status.textContent = "200 OK";
+        } else if (res.status === 500) {
+          lastError = data;
+          body.innerHTML = renderError(data);
+          status.textContent = "500 Error";
+          document.getElementById("fire-agent-btn")?.addEventListener("click", fireAgent);
+          document.getElementById("retry-btn")?.addEventListener("click", () => loadInvoice(id));
+        } else {
+          body.innerHTML = `<p class="empty">${data.error || "Unknown error"}</p>`;
+          status.textContent = `${res.status}`;
+        }
+      } catch (err) {
+        body.innerHTML = `<p class="empty">Failed to fetch: ${err.message}</p>`;
+        status.textContent = "network error";
+      } finally {
+        panel.classList.remove("loading");
+      }
+    }
+
+    function renderAgentPanel(record) {
+      const plan = record.plan;
+      const statusEl = document.getElementById("agent-status");
+      statusEl.textContent = record.status;
+      statusEl.className = `status-pill ${record.status}`;
+
+      const logs = record.logs.map((l) => {
+        const ts = l.ts.split("T")[1]?.slice(0, 8) || l.ts;
+        return `<div class="log-line ${l.phase}"><span class="ts">${ts}</span>${l.message}</div>`;
+      }).join("");
+
+      const remediations = (record.remediations || []).map((r) => `
+        <details class="prompt-block" open>
+          <summary>Prompt for ${r.service} (${r.status})</summary>
+          <pre>${r.prompt || "(no prompt yet)"}</pre>
+        </details>
+        ${r.events?.length ? `<div class="log-feed" style="margin-top:0.5rem">${r.events.map((e) =>
+          `<div class="log-line info"><span class="ts">${e.type}</span>${e.message.slice(0, 120)}</div>`
+        ).join("")}</div>` : ""}
+      `).join("");
+
+      const ctx = record.agentContext;
+      const ctxHtml = ctx ? `
+        <ul class="context-list">
+          <li>Runtime: ${ctx.runtime} · Repo: ${ctx.repository.url}</li>
+          <li>Model: ${ctx.model} · autoCreatePR: ${ctx.autoCreatePR}</li>
+          <li>Skill: ${ctx.autoLoadedSkills?.[0]?.name} — ${ctx.autoLoadedSkills?.[0]?.summary}</li>
+          <li>Hook: ${ctx.policyHooks?.[0]?.name} — ${ctx.policyHooks?.[0]?.purpose}</li>
+        </ul>
+      ` : "";
+
+      document.getElementById("agent-body").innerHTML = `
+        <div class="plan-grid">
+          <div class="plan-item"><div class="k">Strategy</div><div class="v">${plan.strategy}</div></div>
+          <div class="plan-item"><div class="k">Model</div><div class="v">${plan.model}</div></div>
+          <div class="plan-item"><div class="k">Auto PR</div><div class="v">${plan.autoOpenPR ? "yes" : "no (draft)"}</div></div>
+          <div class="plan-item"><div class="k">Human gate</div><div class="v">${plan.requiresHumanApproval ? "required" : "none"}</div></div>
+          <div class="plan-item"><div class="k">Mode</div><div class="v">${record.dryRun ? "DRY RUN" : "LIVE"}</div></div>
+        </div>
+        <p style="font-size:0.85rem;color:var(--muted);margin-bottom:0.75rem">${plan.reason}</p>
+        ${ctxHtml}
+        <div class="log-feed">${logs || '<div class="log-line">Waiting for pipeline…</div>'}</div>
+        ${remediations}
+        ${record.remediations?.[0]?.prUrl ? `<p style="margin-top:1rem;color:var(--success);font-size:0.85rem">PR: <a href="${record.remediations[0].prUrl}" style="color:var(--accent)" target="_blank">${record.remediations[0].prUrl}</a></p>` : ""}
+      `;
+    }
+
+    async function pollIncident(id) {
+      try {
+        const res = await fetch(`${ORCHESTRATOR_URL}/api/incidents/${id}`);
+        if (!res.ok) return;
+        const record = await res.json();
+        renderAgentPanel(record);
+        if (record.status === "completed" || record.status === "error") {
+          clearInterval(pollTimer);
+          pollTimer = null;
+        }
+      } catch { /* orchestrator may be starting */ }
+    }
+
+    async function fireAgent() {
+      if (!lastError) return;
+      const btn = document.getElementById("fire-agent-btn");
+      btn.disabled = true;
+      btn.textContent = "Firing pipeline…";
+
+      document.getElementById("agent-panel").classList.add("visible");
+
+      try {
+        const res = await fetch(`${ORCHESTRATOR_URL}/api/trigger-from-error`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(lastError),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error || "trigger failed");
+
+        activeIncidentId = data.incident;
+        renderAgentPanel({
+          id: data.incident,
+          status: "received",
+          plan: data.plan,
+          dryRun: data.dryRun,
+          agentContext: data.agentContext,
+          logs: [{ ts: new Date().toISOString(), phase: "received", message: "Incident accepted by orchestrator (202)" }],
+          remediations: [],
+        });
+
+        pollTimer = setInterval(() => pollIncident(activeIncidentId), 800);
+        pollIncident(activeIncidentId);
+        btn.textContent = "Agent pipeline running…";
+      } catch (err) {
+        btn.disabled = false;
+        btn.textContent = "Fire remediation agent";
+        document.getElementById("agent-body").innerHTML =
+          `<p class="empty" style="color:var(--error)">Failed to reach orchestrator at ${ORCHESTRATOR_URL}. Run <code>npm run orchestrator</code> first.</p>`;
+      }
+    }
+
+    document.querySelectorAll(".invoice-btn").forEach((btn) => {
+      btn.addEventListener("click", () => loadInvoice(btn.dataset.id));
+    });
+
+    checkMode();
+    loadInvoice("INV-1001");
+  </script>
+</body>
+</html>
