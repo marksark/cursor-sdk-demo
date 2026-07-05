@@ -1,0 +1,28 @@
+{
+  "name": "cursor-incident-agent",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "description": "Autonomous incident-remediation pipeline built on the Cursor SDK. A production error triggers a cloud agent that triages, fixes, and opens a PR.",
+  "engines": {
+    "node": ">=22.13"
+  },
+  "scripts": {
+    "app": "node --env-file-if-exists=.env --import tsx demo-app/src/server.ts",
+    "orchestrator": "node --env-file-if-exists=.env --import tsx orchestrator/src/server.ts",
+    "incident": "node --env-file-if-exists=.env --import tsx incident-source/src/simulate.ts",
+    "incident:multi": "node --env-file-if-exists=.env --import tsx incident-source/src/simulate.ts --multi"
+  },
+  "dependencies": {
+    "express": "^4.21.2"
+  },
+  "optionalDependencies": {
+    "@cursor/sdk": "^1.0.22"
+  },
+  "devDependencies": {
+    "@types/express": "^4.17.21",
+    "@types/node": "^22.10.0",
+    "tsx": "^4.19.2",
+    "typescript": "^5.7.2"
+  }
+}

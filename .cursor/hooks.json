@@ -1,0 +1,12 @@
+{
+  "//": "Guardrails on the agent loop. Cloud, self-hosted, and local runtimes read this. Verify the exact event names/shape against cursor.com/docs/sdk before the demo — the docs render client-side and the beta schema can shift; this is the enterprise-safety story, so know it cold.",
+  "version": 1,
+  "hooks": {
+    "preToolUse": [
+      {
+        "matcher": { "tool": "edit_file" },
+        "command": "node .cursor/hooks/guard-paths.mjs"
+      }
+    ]
+  }
+}

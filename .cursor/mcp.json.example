@@ -1,0 +1,14 @@
+{
+  "//": "Rename to mcp.json and fill in tokens to give the agent real tools. Sentry replaces the simulated incident source; Slack lets the agent post its PR summary back to the on-call channel. Wiring one of these live is a strong 'extend my prototype' moment.",
+  "mcpServers": {
+    "sentry": {
+      "url": "https://mcp.sentry.dev/mcp",
+      "headers": { "Authorization": "Bearer ${SENTRY_MCP_TOKEN}" }
+    },
+    "slack": {
+      "command": "npx",
+      "args": ["-y", "@modelcontextprotocol/server-slack"],
+      "env": { "SLACK_BOT_TOKEN": "${SLACK_BOT_TOKEN}" }
+    }
+  }
+}
