@@ -87,3 +87,17 @@ opens a real PR.
 - `DEMO-SCRIPT.md` — present from this (minute-by-minute run-of-show).
 - `TALKING-POINTS.md` — Q&A: the product ladder, objection answers, limitations.
 - `README.md` — setup and architecture reference.
+
+## Cursor Cloud specific instructions
+- Dependencies refresh via the startup update script (`npm install`). Node ≥ 22.13
+  is already present on the VM.
+- No database, cache, or other external service is needed — all three processes
+  are self-contained Node/tsx servers. There are no `lint` or `test` npm scripts;
+  the "clean build" gate is `npx tsc --noEmit` (see constraint #5).
+- Run commands are in the `## How to run` section above. `npm run app` (:3001) must
+  be started **before** `npm run incident`, because `incident-source` hits the real
+  `INV-1002` endpoint to capture the live 500. `npm run incident:multi` fabricates
+  its event and does not need the app.
+- The pipeline runs fully in `DRY_RUN=true` (the `.env.example` default) with no
+  secrets and no credits — the orchestrator prints the plan + exact agent prompt.
+  Only the opt-in live run needs `CURSOR_API_KEY` + `GITHUB_REPO_URL` + `DRY_RUN=false`.
