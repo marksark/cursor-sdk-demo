@@ -26,14 +26,18 @@ make their decision easy.
 5. **Verify.** Run the test suite. The new test must pass and no others may break.
 6. **Stay in scope.** Only edit files belonging to the implicated service and its
    tests. Never modify secrets, `.env*`, CI config, or infrastructure.
+7. **Open a PR.** Follow the PR requirements below. Be sure to always include the stack trace in the PR description that prompted the fix, so reviewers can verify the root cause and your remediation.
 
 ## PR requirements
 
 Open a PR titled `[auto-remediation] <one-line root cause>` containing:
 
-- **Root cause** — what actually broke and where (file:line).
+- **Root cause** — what actually broke and where (file:line), ideally as much of the error passed in as possible.
 - **Fix** — what you changed and why it is minimal and safe.
 - **Risk note** — blast radius, and anything a reviewer should double-check.
 - **Test evidence** — the failing-then-passing test you added.
 
 If asked to open a draft, open the PR as a **draft** and do not mark it ready.
+
+<!-- ## FUTURE VERSION (Procedure Update) -->
+<!-- 1. Create a ticket in Linear / Jira with the bug and mark it as "Doing" and prioritize based on separate skill to be linekd here. -->
