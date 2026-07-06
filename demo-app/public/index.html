@@ -1,0 +1,657 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Outgoing Invoices — Acme Billing</title>
+  <style>
+    :root {
+      --bg: #f4f6f9;
+      --surface: #ffffff;
+      --border: #e2e8f0;
+      --border-strong: #cbd5e1;
+      --text: #1e293b;
+      --muted: #64748b;
+      --accent: #2563eb;
+      --accent-hover: #1d4ed8;
+      --accent-light: #eff6ff;
+      --success: #059669;
+      --success-bg: #ecfdf5;
+      --error: #dc2626;
+      --error-bg: #fef2f2;
+      --warning: #d97706;
+      --radius: 8px;
+      --shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+      --font: "Inter", system-ui, -apple-system, sans-serif;
+      --mono: ui-monospace, "SF Mono", monospace;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: var(--font);
+      background: var(--bg);
+      color: var(--text);
+      min-height: 100vh;
+      line-height: 1.5;
+    }
+
+    .app-shell {
+      display: grid;
+      grid-template-columns: 220px 1fr;
+      min-height: 100vh;
+    }
+
+    .sidebar {
+      background: #0f172a;
+      color: #e2e8f0;
+      padding: 1.5rem 0;
+    }
+
+    .sidebar .brand {
+      padding: 0 1.25rem 1.5rem;
+      border-bottom: 1px solid #1e293b;
+      margin-bottom: 1rem;
+    }
+
+    .sidebar .brand h1 {
+      font-size: 1rem;
+      font-weight: 600;
+      color: #fff;
+    }
+
+    .sidebar .brand p {
+      font-size: 0.75rem;
+      color: #94a3b8;
+      margin-top: 0.15rem;
+    }
+
+    .nav-item {
+      display: block;
+      padding: 0.6rem 1.25rem;
+      font-size: 0.85rem;
+      color: #94a3b8;
+      border-left: 3px solid transparent;
+    }
+
+    .nav-item.active {
+      color: #fff;
+      background: #1e293b;
+      border-left-color: var(--accent);
+    }
+
+    .main {
+      padding: 2rem 2.5rem;
+      max-width: 960px;
+    }
+
+    .page-header {
+      margin-bottom: 1.75rem;
+    }
+
+    .page-header h2 {
+      font-size: 1.35rem;
+      font-weight: 600;
+      letter-spacing: -0.02em;
+    }
+
+    .page-header p {
+      color: var(--muted);
+      font-size: 0.9rem;
+      margin-top: 0.25rem;
+    }
+
+    .card {
+      background: var(--surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius);
+      box-shadow: var(--shadow);
+      overflow: hidden;
+    }
+
+    .invoice-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.875rem;
+    }
+
+    .invoice-table th {
+      text-align: left;
+      padding: 0.75rem 1.25rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      color: var(--muted);
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .invoice-table td {
+      padding: 0.9rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+      vertical-align: middle;
+    }
+
+    .invoice-table tr:last-child td { border-bottom: none; }
+
+    .invoice-table tbody tr {
+      cursor: pointer;
+      transition: background 0.12s;
+    }
+
+    .invoice-table tbody tr:hover { background: #f8fafc; }
+    .invoice-table tbody tr.selected { background: var(--accent-light); }
+
+    .customer-cell .name { font-weight: 500; }
+    .customer-cell .id { font-size: 0.75rem; color: var(--muted); font-family: var(--mono); }
+
+    .status-badge {
+      display: inline-block;
+      font-size: 0.7rem;
+      font-weight: 500;
+      padding: 0.2rem 0.5rem;
+      border-radius: 999px;
+    }
+
+    .status-badge.ready { background: var(--success-bg); color: var(--success); }
+    .status-badge.pending { background: #fff7ed; color: var(--warning); }
+
+    .amount { font-variant-numeric: tabular-nums; font-weight: 500; }
+    .amount.muted { color: var(--muted); font-weight: 400; }
+
+    .detail-panel {
+      margin-top: 1.5rem;
+      display: none;
+    }
+
+    .detail-panel.visible { display: block; }
+
+    .detail-header {
+      padding: 1.25rem;
+      border-bottom: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 1rem;
+    }
+
+    .detail-header h3 { font-size: 1rem; font-weight: 600; }
+    .detail-header .meta { font-size: 0.8rem; color: var(--muted); margin-top: 0.25rem; }
+
+    .line-items {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.85rem;
+    }
+
+    .line-items th {
+      text-align: left;
+      padding: 0.6rem 1.25rem;
+      font-size: 0.7rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      color: var(--muted);
+      background: #f8fafc;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .line-items td {
+      padding: 0.7rem 1.25rem;
+      border-bottom: 1px solid var(--border);
+    }
+
+    .line-items tr:last-child td { border-bottom: none; }
+
+    .discount-tag {
+      font-size: 0.75rem;
+      color: var(--success);
+      background: var(--success-bg);
+      padding: 0.1rem 0.4rem;
+      border-radius: 4px;
+    }
+
+    .discount-tag.none { color: var(--muted); background: #f1f5f9; }
+
+    .detail-footer {
+      padding: 1.25rem;
+      border-top: 1px solid var(--border);
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      background: #f8fafc;
+    }
+
+    .totals-preview {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    .totals-preview strong {
+      color: var(--text);
+      font-size: 1.1rem;
+      margin-left: 0.5rem;
+    }
+
+    button.generate {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.5rem;
+      background: var(--accent);
+      color: #fff;
+      border: none;
+      padding: 0.6rem 1.1rem;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      font-weight: 500;
+      cursor: pointer;
+      transition: background 0.15s;
+    }
+
+    button.generate:hover { background: var(--accent-hover); }
+    button.generate:disabled { opacity: 0.6; cursor: not-allowed; }
+
+    button.generate svg { width: 16px; height: 16px; }
+
+    /* Toasts */
+    .toast-container {
+      position: fixed;
+      top: 1.25rem;
+      right: 1.25rem;
+      z-index: 1000;
+      display: flex;
+      flex-direction: column;
+      gap: 0.6rem;
+      max-width: 380px;
+    }
+
+    .toast {
+      padding: 0.9rem 1.1rem;
+      border-radius: var(--radius);
+      box-shadow: 0 4px 12px rgba(15, 23, 42, 0.15);
+      font-size: 0.85rem;
+      display: flex;
+      gap: 0.75rem;
+      align-items: flex-start;
+      animation: slideIn 0.25s ease;
+      border: 1px solid transparent;
+    }
+
+    @keyframes slideIn {
+      from { transform: translateX(100%); opacity: 0; }
+      to { transform: translateX(0); opacity: 1; }
+    }
+
+    .toast.success { background: var(--success-bg); border-color: #a7f3d0; color: #065f46; }
+    .toast.error { background: var(--error-bg); border-color: #fecaca; color: #991b1b; }
+    .toast.info { background: var(--accent-light); border-color: #bfdbfe; color: #1e40af; }
+
+    .toast .icon { font-size: 1.1rem; flex-shrink: 0; line-height: 1; }
+    .toast .body strong { display: block; margin-bottom: 0.15rem; }
+    .toast .body p { font-size: 0.8rem; opacity: 0.9; }
+
+    /* Agent pipeline (collapsed by default, opens on incident) */
+    .agent-drawer {
+      position: fixed;
+      bottom: 0;
+      right: 1.5rem;
+      width: 420px;
+      max-height: 50vh;
+      background: #0f172a;
+      color: #e2e8f0;
+      border: 1px solid #1e293b;
+      border-bottom: none;
+      border-radius: 10px 10px 0 0;
+      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
+      transform: translateY(100%);
+      transition: transform 0.3s ease;
+      z-index: 900;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .agent-drawer.open { transform: translateY(0); }
+
+    .agent-drawer-header {
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid #1e293b;
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      cursor: pointer;
+      font-size: 0.8rem;
+      font-weight: 600;
+    }
+
+    .agent-drawer-body {
+      padding: 1rem;
+      overflow-y: auto;
+      font-size: 0.75rem;
+      font-family: var(--mono);
+      flex: 1;
+    }
+
+    .agent-drawer .status-dot {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      background: #64748b;
+      display: inline-block;
+      margin-right: 0.4rem;
+    }
+
+    .agent-drawer .status-dot.active { background: #fbbf24; animation: pulse 1s infinite; }
+    .agent-drawer .status-dot.done { background: #34d399; }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.4; }
+    }
+
+    .agent-log { color: #94a3b8; margin-bottom: 0.3rem; }
+    .agent-log.done { color: #34d399; }
+    .agent-log.err { color: #f87171; }
+
+    .empty-state {
+      text-align: center;
+      padding: 2rem;
+      color: var(--muted);
+      font-size: 0.9rem;
+    }
+  </style>
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar">
+      <div class="brand">
+        <h1>Acme Billing</h1>
+        <p>Internal portal</p>
+      </div>
+      <span class="nav-item active">Outgoing invoices</span>
+      <span class="nav-item">Customers</span>
+      <span class="nav-item">Reports</span>
+    </aside>
+
+    <div class="main">
+      <div class="page-header">
+        <h2>Outgoing invoices</h2>
+        <p>Generate and download invoices sent to customer accounts.</p>
+      </div>
+
+      <div class="card">
+        <table class="invoice-table">
+          <thead>
+            <tr>
+              <th>Invoice</th>
+              <th>Customer</th>
+              <th>Issued</th>
+              <th>Due</th>
+              <th>Amount</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="invoice-list">
+            <tr><td colspan="6" class="empty-state">Loading invoices…</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="card detail-panel" id="detail-panel">
+        <div class="detail-header">
+          <div>
+            <h3 id="detail-title">—</h3>
+            <p class="meta" id="detail-meta">—</p>
+          </div>
+        </div>
+        <table class="line-items">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Description</th>
+              <th>Qty</th>
+              <th>Unit price</th>
+              <th>Discount</th>
+              <th>Line total</th>
+            </tr>
+          </thead>
+          <tbody id="line-items-body"></tbody>
+        </table>
+        <div class="detail-footer">
+          <div class="totals-preview" id="totals-preview"></div>
+          <button class="generate" id="generate-btn">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+            Generate &amp; download
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <div class="toast-container" id="toasts"></div>
+
+  <div class="agent-drawer" id="agent-drawer">
+    <div class="agent-drawer-header" id="agent-drawer-toggle">
+      <span><span class="status-dot" id="agent-dot"></span>Incident pipeline</span>
+      <span id="agent-drawer-label">—</span>
+    </div>
+    <div class="agent-drawer-body" id="agent-drawer-body"></div>
+  </div>
+
+  <script>
+    const ORCHESTRATOR_URL = window.ORCHESTRATOR_URL || "http://localhost:3000";
+    let selectedId = null;
+    let selectedDetail = null;
+    let lastError = null;
+    let pollTimer = null;
+
+    const fmt = (cents) =>
+      new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+
+    const fmtDate = (iso) =>
+      new Date(iso + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
+
+    function showToast(type, title, message) {
+      const container = document.getElementById("toasts");
+      const el = document.createElement("div");
+      el.className = `toast ${type}`;
+      const icons = { success: "✓", error: "✕", info: "ℹ" };
+      el.innerHTML = `<span class="icon">${icons[type] || "·"}</span><div class="body"><strong>${title}</strong><p>${message}</p></div>`;
+      container.appendChild(el);
+      setTimeout(() => el.remove(), type === "error" ? 8000 : 5000);
+    }
+
+    async function loadInvoiceList() {
+      const res = await fetch("/api/invoices");
+      const list = await res.json();
+      const tbody = document.getElementById("invoice-list");
+
+      tbody.innerHTML = list.map((inv) => `
+        <tr data-id="${inv.id}" class="${selectedId === inv.id ? "selected" : ""}">
+          <td><span class="customer-cell"><span class="name">${inv.id}</span></span></td>
+          <td><span class="customer-cell"><span class="name">${inv.customer}</span></span></td>
+          <td>${fmtDate(inv.issuedAt)}</td>
+          <td>${fmtDate(inv.dueDate)}</td>
+          <td class="amount ${inv.totalCents == null ? "muted" : ""}">${inv.totalCents != null ? fmt(inv.totalCents) : "—"}</td>
+          <td><span class="status-badge ${inv.status}">${inv.status === "ready" ? "Ready" : "Pending"}</span></td>
+        </tr>
+      `).join("");
+
+      tbody.querySelectorAll("tr[data-id]").forEach((row) => {
+        row.addEventListener("click", () => selectInvoice(row.dataset.id));
+      });
+    }
+
+    async function selectInvoice(id) {
+      selectedId = id;
+      await loadInvoiceList();
+
+      const res = await fetch(`/api/invoices/${id}`);
+      if (!res.ok) return;
+      selectedDetail = await res.json();
+
+      document.getElementById("detail-panel").classList.add("visible");
+      document.getElementById("detail-title").textContent = `${selectedDetail.id} — ${selectedDetail.customer}`;
+      document.getElementById("detail-meta").textContent = `Currency: ${selectedDetail.currency}`;
+
+      const tbody = document.getElementById("line-items-body");
+      tbody.innerHTML = selectedDetail.lineItems.map((item) => {
+        const gross = item.unitPriceCents * item.quantity;
+        const discPct = item.discount ? `${(item.discount.rate * 100).toFixed(0)}%` : null;
+        const discTag = item.discount
+          ? `<span class="discount-tag">${discPct} — ${item.discount.reason}</span>`
+          : `<span class="discount-tag none">None</span>`;
+        return `
+          <tr>
+            <td style="font-family:var(--mono);font-size:0.8rem">${item.sku}</td>
+            <td>${item.description}</td>
+            <td>${item.quantity}</td>
+            <td class="amount">${fmt(item.unitPriceCents)}</td>
+            <td>${discTag}</td>
+            <td class="amount">${fmt(gross)}</td>
+          </tr>
+        `;
+      }).join("");
+
+      document.getElementById("totals-preview").innerHTML = "Total will be calculated on generate";
+    }
+
+    function downloadInvoice(summary, customer) {
+      const content = [
+        `INVOICE ${summary.invoiceId}`,
+        `Customer: ${customer}`,
+        `Currency: ${summary.currency}`,
+        ``,
+        `Subtotal:  ${fmt(summary.subtotalCents)}`,
+        `Discount:  ${fmt(summary.discountCents)}`,
+        `Total:     ${fmt(summary.totalCents)}`,
+        ``,
+        `Generated: ${new Date().toISOString()}`,
+      ].join("\n");
+
+      const blob = new Blob([content], { type: "text/plain" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `${summary.invoiceId}.txt`;
+      a.click();
+      URL.revokeObjectURL(url);
+    }
+
+    function openAgentDrawer() {
+      document.getElementById("agent-drawer").classList.add("open");
+      document.getElementById("agent-dot").classList.add("active");
+    }
+
+    function renderAgentDrawer(record) {
+      const dot = document.getElementById("agent-dot");
+      const label = document.getElementById("agent-drawer-label");
+      const body = document.getElementById("agent-drawer-body");
+
+      label.textContent = record.status;
+      dot.classList.toggle("active", record.status === "remediating" || record.status === "received");
+      dot.classList.toggle("done", record.status === "completed");
+
+      const logs = (record.logs || []).map((l) => {
+        const cls = l.phase === "completed" ? "done" : l.phase === "error" ? "err" : "";
+        const ts = l.ts.split("T")[1]?.slice(0, 8) || "";
+        return `<div class="agent-log ${cls}">[${ts}] ${l.message}</div>`;
+      }).join("");
+
+      const prompt = record.remediations?.[0]?.prompt;
+      const promptBlock = prompt
+        ? `<details style="margin-top:0.75rem;color:#64748b"><summary style="cursor:pointer;color:#93c5fd">Agent prompt</summary><pre style="margin-top:0.5rem;white-space:pre-wrap;font-size:0.7rem">${prompt.slice(0, 600)}…</pre></details>`
+        : "";
+
+      body.innerHTML = `
+        <div style="color:#93c5fd;margin-bottom:0.5rem">${record.plan?.strategy} · ${record.plan?.model} · ${record.dryRun ? "DRY RUN" : "LIVE"}</div>
+        ${logs}
+        ${promptBlock}
+      `;
+    }
+
+    async function pollIncident(id) {
+      try {
+        const res = await fetch(`${ORCHESTRATOR_URL}/api/incidents/${id}`);
+        if (!res.ok) return;
+        const record = await res.json();
+        renderAgentDrawer(record);
+        if (record.status === "completed" || record.status === "error") {
+          clearInterval(pollTimer);
+          pollTimer = null;
+          showToast("info", "Remediation pipeline complete",
+            record.dryRun ? "Dry run finished — prompt logged, no cloud agent started." : "Cloud agent finished.");
+        }
+      } catch { /* orchestrator offline */ }
+    }
+
+    async function fireAgent() {
+      if (!lastError) return;
+      openAgentDrawer();
+
+      try {
+        const res = await fetch(`${ORCHESTRATOR_URL}/api/trigger-from-error`, {
+          method: "POST",
+          headers: { "content-type": "application/json" },
+          body: JSON.stringify(lastError),
+        });
+        const data = await res.json();
+        if (!res.ok) throw new Error(data.error);
+
+        renderAgentDrawer({
+          status: "received",
+          plan: data.plan,
+          dryRun: data.dryRun,
+          logs: [{ ts: new Date().toISOString(), phase: "received", message: "Incident auto-triggered from invoice generation failure" }],
+          remediations: [],
+        });
+
+        pollTimer = setInterval(() => pollIncident(data.incident), 800);
+        pollIncident(data.incident);
+      } catch {
+        showToast("info", "Orchestrator offline", "Run npm run orchestrator to see the remediation pipeline.");
+      }
+    }
+
+    async function generateInvoice() {
+      if (!selectedId) return;
+      const btn = document.getElementById("generate-btn");
+      btn.disabled = true;
+      btn.textContent = "Generating…";
+
+      showToast("info", "Generating invoice", `Building ${selectedId} for download…`);
+
+      try {
+        const res = await fetch(`/api/invoices/${selectedId}/summary`);
+        const data = await res.json();
+
+        if (res.ok) {
+          downloadInvoice(data, selectedDetail.customer);
+          document.getElementById("totals-preview").innerHTML =
+            `Total<strong>${fmt(data.totalCents)}</strong> <span style="color:var(--success);margin-left:0.5rem">(inc. ${fmt(data.discountCents)} discount)</span>`;
+          showToast("success", "Invoice downloaded", `${selectedId} for ${selectedDetail.customer} saved successfully.`);
+        } else if (res.status === 500) {
+          lastError = data;
+          showToast("error", "Failed to generate invoice",
+            `Server error: ${data.message}. The billing team has been notified.`);
+          void fireAgent();
+        } else {
+          showToast("error", "Generation failed", data.error || "Unknown error");
+        }
+      } catch (err) {
+        showToast("error", "Network error", err.message);
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Generate &amp; download`;
+      }
+    }
+
+    document.getElementById("generate-btn").addEventListener("click", generateInvoice);
+    document.getElementById("agent-drawer-toggle").addEventListener("click", () => {
+      document.getElementById("agent-drawer").classList.toggle("open");
+    });
+
+    loadInvoiceList().then(() => selectInvoice("INV-1001"));
+  </script>
+</body>
+</html>
