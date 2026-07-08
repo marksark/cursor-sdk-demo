@@ -1,8 +1,10 @@
-import express from "express";
+import express, { type Response } from "express";
 import { buildAgentContextPreview } from "./agent-context.js";
 import {
   appendLog,
   createIncidentRecord,
+  findActiveIncidentByFingerprint,
+  fingerprintEvent,
   getIncident,
   listIncidents,
   markTriaged,
@@ -39,11 +41,54 @@ app.get("/api/incidents/:id", (req, res) => {
   res.json(record);
 });
 
-async function runRemediation(event: IncidentEvent): Promise<void> {
+// Idempotent entry point for every incident trigger. If an identical error is
+// already being worked (same fingerprint, not yet finished), we attach the
+// caller to that in-flight run instead of spinning up another agent. This is
+// what makes "click the button ten times" fire exactly one cloud agent.
+function acceptIncident(event: IncidentEvent, res: Response): void {
+  const fingerprint = fingerprintEvent(event);
+  const active = findActiveIncidentByFingerprint(fingerprint);
+
+  if (active) {
+    appendLog(
+      active.id,
+      "info",
+      `Duplicate trigger ${event.id} collapsed into in-flight incident ${active.id} — no new agent started (idempotent).`,
+    );
+    console.log(
+      `\n♻️  Duplicate trigger for "${event.title}" collapsed into ${active.id} — no new cloud agent started.`,
+    );
+    res.status(202).json({
+      accepted: true,
+      deduped: true,
+      incident: active.id,
+      plan: active.plan,
+      dryRun: active.dryRun,
+      agentContext: active.agentContext,
+      statusUrl: `/api/incidents/${active.id}`,
+    });
+    return;
+  }
+
   const plan = triage(event);
   const agentContext = buildAgentContextPreview(plan);
-
   createIncidentRecord(event, plan, DRY_RUN, agentContext);
+
+  res.status(202).json({
+    accepted: true,
+    deduped: false,
+    incident: event.id,
+    plan,
+    dryRun: DRY_RUN,
+    agentContext,
+    statusUrl: `/api/incidents/${event.id}`,
+  });
+
+  void runRemediation(event);
+}
+
+async function runRemediation(event: IncidentEvent): Promise<void> {
+  const plan = triage(event);
   markTriaged(event.id);
 
   appendLog(
@@ -93,19 +138,7 @@ app.post("/webhooks/incident", async (req, res) => {
     return res.status(400).json({ error: "malformed_incident" });
   }
 
-  const plan = triage(event);
-  const agentContext = buildAgentContextPreview(plan);
-
-  res.status(202).json({
-    accepted: true,
-    incident: event.id,
-    plan,
-    dryRun: DRY_RUN,
-    agentContext,
-    statusUrl: `/api/incidents/${event.id}`,
-  });
-
-  void runRemediation(event);
+  acceptIncident(event, res);
 });
 
 // Convenience endpoint for the demo UI: build an incident from a 500 response body.
@@ -133,19 +166,7 @@ app.post("/api/trigger-from-error", async (req, res) => {
     implicatedServices: [body.service ?? "billing-api"],
   };
 
-  const plan = triage(event);
-  const agentContext = buildAgentContextPreview(plan);
-
-  res.status(202).json({
-    accepted: true,
-    incident: event.id,
-    plan,
-    dryRun: DRY_RUN,
-    agentContext,
-    statusUrl: `/api/incidents/${event.id}`,
-  });
-
-  void runRemediation(event);
+  acceptIncident(event, res);
 });
 
 app.listen(PORT, () => {

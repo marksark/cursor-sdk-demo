@@ -58,6 +58,17 @@ npm run incident:multi # cross-service + PCI → fan-out + human merge gate
 In DRY_RUN the orchestrator prints the exact plan and the exact prompt each cloud
 agent would receive. This is your safe walkthrough — flip to live for the finale.
 
+To rehearse the live UI without a key or credits, set `SIMULATE_STREAM=true`: the
+orchestrator replays a scripted agent stream so the dashboard's incident drawer
+updates live (and the "Agent prompt" panel stays open) exactly as it does on a real
+run. Off by default so the standard dry run stays deterministic.
+
+Every incident is fingerprinted (`service + culprit + message`), so repeated
+triggers for the same error — a retrying alert, or a user clicking "Generate" ten
+times — collapse onto the single in-flight run instead of starting an agent each
+time. The dashboard also locks the button to "Agent remediating…" while a run is
+active. See `TALKING-POINTS.md` for the client-facing version of that answer.
+
 ## The live "money shot"
 
 1. Push this repo to your own GitHub.

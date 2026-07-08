@@ -77,14 +77,18 @@ const agent = await Agent.create({
     autoCreatePR: plan.autoOpenPR,           // false when a human must approve first
   },
 });
-const run = await agent.send(prompt);
-for await (const e of run.stream()) { /* live progress */ }
-const done = await (await Agent.getRun(run.id, { runtime: "cloud", agentId: run.agentId })).wait();
+const run = await agent.send(prompt, { idempotencyKey });   // dedupe duplicate sends
+if (run.supports("stream")) {
+  for await (const e of run.stream()) { /* live progress -> UI drawer */ }
+}
+const done = await run.wait();                               // result lives on the run
 const prUrl = done.git?.branches?.[0]?.prUrl;
 ```
 Say: "Cloud runtime, not local — the agent runs in a dedicated sandboxed VM,
 survives my laptop sleeping, and opens the PR itself. I stream events so you can
-watch it work, then read the PR URL off the result."
+watch it work, then read the PR URL off the result. The `idempotencyKey` is
+derived from the incident fingerprint, so a duplicate trigger can't spawn a
+second agent."
 
 **The Skill** — open `.cursor/skills/incident-triage/SKILL.md`:
 "The agent auto-loads this. It enforces the enterprise procedure: reproduce first,

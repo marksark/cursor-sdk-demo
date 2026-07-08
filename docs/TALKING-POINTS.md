@@ -61,6 +61,26 @@ build went red; it can't reason about *why*, traverse the codebase, write a veri
 fix, or open a reviewable PR. Detection without cognition. The harness supplies the
 cognition.
 
+**"If the alert fires ten times — or someone clicks the button ten times — do I get
+ten agents and ten PRs?"** No — one production error maps to exactly one agent and
+one PR, and there are three layers that guarantee it:
+1. **The UI locks the trigger.** The moment a run starts, the button disables and
+   reads "Agent remediating…"; a person physically can't fire a second run for that
+   error. It re-enables only when the pipeline finishes.
+2. **The orchestrator fingerprints every incident** — `service + culprit + message`,
+   the same way Sentry groups occurrences into one issue (`incident-store.ts:
+   fingerprintEvent`). A duplicate that arrives while a matching run is still
+   in flight is *collapsed onto that run* (`deduped: true`), so no second agent
+   starts. Once the run finishes, a genuinely new occurrence is free to start a
+   fresh run — that's correct, not a leak.
+3. **The SDK gets an `idempotencyKey`** derived from that fingerprint, passed to
+   `Agent.create()` and `agent.send()`. So even a race across two orchestrator
+   instances collapses to one cloud agent server-side.
+
+The honest framing: a no-code Automation gives you *per-trigger* firing with no
+notion of "the same incident." De-duplication by issue identity is exactly the kind
+of stateful control you drop down to the SDK for.
+
 ## 6. Why the SDK over a raw model API
 The harness is the product: codebase indexing, semantic search, sandboxing, durable
 runs, hooks, subagents, and model routing — none of which I want to build or

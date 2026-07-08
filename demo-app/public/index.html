@@ -444,9 +444,16 @@
     let selectedDetail = null;
     let lastError = null;
     let pollTimer = null;
+    // Debounce guard: while an agent is remediating the current error, extra
+    // clicks must not start another run (the backend also dedupes by fingerprint).
+    let pipelineActive = false;
 
     const fmt = (cents) =>
       new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
+
+    const escapeHtml = (value) =>
+      String(value).replace(/[&<>"']/g, (c) =>
+        ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
 
     const fmtDate = (iso) =>
       new Date(iso + "T00:00:00").toLocaleDateString("en-US", { month: "short", day: "numeric", year: "numeric" });
@@ -543,31 +550,74 @@
       document.getElementById("agent-dot").classList.add("active");
     }
 
+    // While a remediation is in flight the button is locked into a "remediating"
+    // state so a user physically cannot fire a second run. This is the visible
+    // half of the "one click == one agent" guarantee (the backend fingerprint
+    // dedup is the authoritative half).
+    function setGenerateButton(mode) {
+      const btn = document.getElementById("generate-btn");
+      if (mode === "remediating") {
+        btn.disabled = true;
+        btn.textContent = "Agent remediating…";
+      } else {
+        btn.disabled = false;
+        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Generate &amp; download`;
+      }
+    }
+
+    // Builds the drawer's stable skeleton exactly once. Re-renders update the
+    // pieces in place so live-stream polling never wipes the DOM — which is what
+    // used to snap the "Agent prompt" disclosure shut on every tick in live mode.
+    function ensureDrawerSkeleton(body) {
+      if (document.getElementById("agent-meta")) return;
+      body.innerHTML = `
+        <div id="agent-meta" style="color:#93c5fd;margin-bottom:0.5rem">—</div>
+        <div id="agent-timeline" style="overflow-y:auto;max-height:26vh"></div>
+        <details id="agent-prompt" style="margin-top:0.75rem;color:#64748b">
+          <summary style="cursor:pointer;color:#93c5fd">Agent prompt</summary>
+          <pre id="agent-prompt-pre" style="margin-top:0.5rem;white-space:pre-wrap;font-size:0.7rem"></pre>
+        </details>`;
+    }
+
     function renderAgentDrawer(record) {
       const dot = document.getElementById("agent-dot");
       const label = document.getElementById("agent-drawer-label");
       const body = document.getElementById("agent-drawer-body");
+      ensureDrawerSkeleton(body);
 
       label.textContent = record.status;
-      dot.classList.toggle("active", record.status === "remediating" || record.status === "received");
+      const working = record.status === "received" || record.status === "triaged" || record.status === "remediating";
+      dot.classList.toggle("active", working);
       dot.classList.toggle("done", record.status === "completed");
 
-      const logs = (record.logs || []).map((l) => {
-        const cls = l.phase === "completed" ? "done" : l.phase === "error" ? "err" : "";
-        const ts = l.ts.split("T")[1]?.slice(0, 8) || "";
-        return `<div class="agent-log ${cls}">[${ts}] ${l.message}</div>`;
+      document.getElementById("agent-meta").textContent =
+        `${record.plan?.strategy ?? "—"} · ${record.plan?.model ?? "—"} · ${record.dryRun ? "DRY RUN" : "LIVE"}`;
+
+      // One timeline merging incident logs with the live per-service agent
+      // stream, so the drawer visibly updates as events arrive.
+      const items = [];
+      (record.logs || []).forEach((l) => items.push({ ts: l.ts, cls: l.phase, label: l.message }));
+      (record.remediations || []).forEach((r) =>
+        (r.events || []).forEach((e) => {
+          if (e.type === "prompt") return; // shown in the prompt disclosure below
+          items.push({ ts: e.ts, cls: e.type, label: `${r.service} · ${e.message}` });
+        }));
+      items.sort((a, b) => (a.ts < b.ts ? -1 : a.ts > b.ts ? 1 : 0));
+
+      const timeline = document.getElementById("agent-timeline");
+      const nearBottom = timeline.scrollHeight - timeline.scrollTop - timeline.clientHeight < 40;
+      timeline.innerHTML = items.map((it) => {
+        const done = it.cls === "completed" || it.cls === "done";
+        const err = it.cls === "error" || it.cls === "err";
+        const cls = done ? "done" : err ? "err" : "";
+        const ts = it.ts?.split("T")[1]?.slice(0, 8) || "";
+        return `<div class="agent-log ${cls}">[${ts}] ${escapeHtml(it.label)}</div>`;
       }).join("");
+      if (nearBottom) timeline.scrollTop = timeline.scrollHeight;
 
-      const prompt = record.remediations?.[0]?.prompt;
-      const promptBlock = prompt
-        ? `<details style="margin-top:0.75rem;color:#64748b"><summary style="cursor:pointer;color:#93c5fd">Agent prompt</summary><pre style="margin-top:0.5rem;white-space:pre-wrap;font-size:0.7rem">${prompt.slice(0, 600)}…</pre></details>`
-        : "";
-
-      body.innerHTML = `
-        <div style="color:#93c5fd;margin-bottom:0.5rem">${record.plan?.strategy} · ${record.plan?.model} · ${record.dryRun ? "DRY RUN" : "LIVE"}</div>
-        ${logs}
-        ${promptBlock}
-      `;
+      const prompt = record.remediations?.find((r) => r.prompt)?.prompt;
+      const pre = document.getElementById("agent-prompt-pre");
+      if (prompt && pre.textContent !== prompt) pre.textContent = prompt;
     }
 
     async function pollIncident(id) {
@@ -579,6 +629,8 @@
         if (record.status === "completed" || record.status === "error") {
           clearInterval(pollTimer);
           pollTimer = null;
+          pipelineActive = false;
+          setGenerateButton("idle");
           showToast("info", "Remediation pipeline complete",
             record.dryRun ? "Dry run finished — prompt logged, no cloud agent started." : "Cloud agent finished.");
         }
@@ -589,6 +641,16 @@
       if (!lastError) return;
       openAgentDrawer();
 
+      // A run is already in flight for this error — extra clicks are no-ops.
+      if (pipelineActive) {
+        setGenerateButton("remediating");
+        showToast("info", "Remediation already running",
+          "An agent is already handling this error. Extra clicks won't start another run.");
+        return;
+      }
+      pipelineActive = true;
+      setGenerateButton("remediating");
+
       try {
         const res = await fetch(`${ORCHESTRATOR_URL}/api/trigger-from-error`, {
           method: "POST",
@@ -598,6 +660,11 @@
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
 
+        if (data.deduped) {
+          showToast("info", "Collapsed into existing run",
+            "An agent is already remediating this error — no new run was started.");
+        }
+
         renderAgentDrawer({
           status: "received",
           plan: data.plan,
@@ -606,9 +673,12 @@
           remediations: [],
         });
 
+        if (pollTimer) clearInterval(pollTimer);
         pollTimer = setInterval(() => pollIncident(data.incident), 800);
         pollIncident(data.incident);
       } catch {
+        pipelineActive = false;
+        setGenerateButton("idle");
         showToast("info", "Orchestrator offline", "Run npm run orchestrator to see the remediation pipeline.");
       }
     }
@@ -641,8 +711,9 @@
       } catch (err) {
         showToast("error", "Network error", err.message);
       } finally {
-        btn.disabled = false;
-        btn.innerHTML = `<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg> Generate &amp; download`;
+        // Leave the button in its "remediating" state if a run just started;
+        // pollIncident restores it to idle when the pipeline finishes.
+        if (!pipelineActive) setGenerateButton("idle");
       }
     }
 

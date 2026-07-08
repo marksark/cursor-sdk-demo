@@ -34,14 +34,43 @@ export interface IncidentRecord {
   agentContext: AgentContextPreview;
   remediations: ServiceRemediationState[];
   logs: IncidentLogEntry[];
+  fingerprint: string;
   createdAt: string;
   updatedAt: string;
 }
 
 const incidents = new Map<string, IncidentRecord>();
 
+// Once an incident reaches one of these, a fresh identical error is treated as a
+// new occurrence rather than a duplicate of an in-flight run.
+const TERMINAL_PHASES = new Set<IncidentPhase>(["completed", "error"]);
+
 function now(): string {
   return new Date().toISOString();
+}
+
+// Group incidents the way an error tracker (Sentry/Datadog) groups issues: the
+// same culprit frame + message + service is "the same problem". This is what
+// lets repeated triggers for one production error collapse into a single run
+// instead of spawning an agent per click. Keep it stable and normalized.
+export function fingerprintEvent(event: IncidentEvent): string {
+  const service = event.tags?.service ?? event.implicatedServices?.[0] ?? "unknown";
+  return [service, event.culprit, event.message]
+    .map((part) => (part ?? "").trim().toLowerCase())
+    .join("::");
+}
+
+// Returns an existing incident with the same fingerprint that has not yet
+// finished. Callers use this to dedupe duplicate triggers onto one in-flight run.
+export function findActiveIncidentByFingerprint(
+  fingerprint: string,
+): IncidentRecord | undefined {
+  for (const record of incidents.values()) {
+    if (record.fingerprint === fingerprint && !TERMINAL_PHASES.has(record.status)) {
+      return record;
+    }
+  }
+  return undefined;
 }
 
 export function createIncidentRecord(
@@ -65,6 +94,7 @@ export function createIncidentRecord(
         message: `Incident received: ${event.title}`,
       },
     ],
+    fingerprint: fingerprintEvent(event),
     createdAt: now(),
     updatedAt: now(),
   };
