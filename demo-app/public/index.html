@@ -296,14 +296,14 @@
       position: fixed;
       bottom: 0;
       right: 1.5rem;
-      width: 420px;
-      max-height: 50vh;
+      width: min(920px, calc(100vw - 3rem));
+      max-height: 78vh;
       background: #0f172a;
       color: #e2e8f0;
       border: 1px solid #1e293b;
       border-bottom: none;
-      border-radius: 10px 10px 0 0;
-      box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.2);
+      border-radius: 12px 12px 0 0;
+      box-shadow: 0 -8px 32px rgba(0, 0, 0, 0.35);
       transform: translateY(100%);
       transition: transform 0.3s ease;
       z-index: 900;
@@ -314,22 +314,130 @@
     .agent-drawer.open { transform: translateY(0); }
 
     .agent-drawer-header {
-      padding: 0.75rem 1rem;
+      padding: 0.85rem 1.1rem;
       border-bottom: 1px solid #1e293b;
       display: flex;
       justify-content: space-between;
       align-items: center;
       cursor: pointer;
-      font-size: 0.8rem;
+      font-size: 0.85rem;
       font-weight: 600;
+      flex-shrink: 0;
+    }
+
+    .agent-drawer-tabs {
+      display: flex;
+      gap: 0.35rem;
+      padding: 0.5rem 1rem 0;
+      border-bottom: 1px solid #1e293b;
+      flex-shrink: 0;
+    }
+
+    .agent-tab {
+      background: transparent;
+      border: none;
+      color: #94a3b8;
+      font-size: 0.78rem;
+      font-weight: 600;
+      padding: 0.45rem 0.75rem;
+      border-radius: 6px 6px 0 0;
+      cursor: pointer;
+      font-family: inherit;
+    }
+
+    .agent-tab.active {
+      color: #e2e8f0;
+      background: #1e293b;
     }
 
     .agent-drawer-body {
-      padding: 1rem;
+      padding: 1rem 1.1rem 1.25rem;
       overflow-y: auto;
-      font-size: 0.75rem;
+      font-size: 0.82rem;
       font-family: var(--mono);
       flex: 1;
+      min-height: 280px;
+    }
+
+    .agent-meta {
+      color: #93c5fd;
+      margin-bottom: 0.75rem;
+      font-size: 0.8rem;
+      line-height: 1.5;
+    }
+
+    .agent-meta a { color: #60a5fa; }
+
+    .agent-log { color: #94a3b8; margin-bottom: 0.35rem; line-height: 1.45; }
+    .agent-log.done { color: #34d399; }
+    .agent-log.err { color: #f87171; }
+
+    .stream-list { display: flex; flex-direction: column; gap: 0.65rem; }
+
+    .stream-event {
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      background: #111827;
+      overflow: hidden;
+    }
+
+    .stream-event summary {
+      cursor: pointer;
+      padding: 0.55rem 0.75rem;
+      list-style: none;
+      display: flex;
+      gap: 0.5rem;
+      align-items: baseline;
+      font-size: 0.78rem;
+    }
+
+    .stream-event summary::-webkit-details-marker { display: none; }
+
+    .stream-badge {
+      font-size: 0.65rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.04em;
+      padding: 0.15rem 0.4rem;
+      border-radius: 4px;
+      flex-shrink: 0;
+    }
+
+    .stream-badge.thinking { background: #4c1d95; color: #ddd6fe; }
+    .stream-badge.assistant { background: #1e3a8a; color: #bfdbfe; }
+    .stream-badge.tool_call { background: #713f12; color: #fde68a; }
+    .stream-badge.user { background: #134e4a; color: #99f6e4; }
+    .stream-badge.system { background: #334155; color: #cbd5e1; }
+    .stream-badge.conversation { background: #831843; color: #fbcfe8; }
+    .stream-badge.default { background: #334155; color: #cbd5e1; }
+
+    .stream-event pre {
+      margin: 0;
+      padding: 0.75rem;
+      border-top: 1px solid #1e293b;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 0.72rem;
+      line-height: 1.5;
+      max-height: 320px;
+      overflow: auto;
+      color: #cbd5e1;
+    }
+
+    .conversation-panel pre,
+    .prompt-panel pre {
+      margin: 0;
+      white-space: pre-wrap;
+      word-break: break-word;
+      font-size: 0.76rem;
+      line-height: 1.55;
+      color: #cbd5e1;
+      background: #111827;
+      border: 1px solid #1e293b;
+      border-radius: 8px;
+      padding: 0.85rem;
+      max-height: 52vh;
+      overflow: auto;
     }
 
     .agent-drawer .status-dot {
@@ -349,9 +457,12 @@
       50% { opacity: 0.4; }
     }
 
-    .agent-log { color: #94a3b8; margin-bottom: 0.3rem; }
-    .agent-log.done { color: #34d399; }
-    .agent-log.err { color: #f87171; }
+    .panel-empty {
+      color: #64748b;
+      font-size: 0.8rem;
+      line-height: 1.5;
+      padding: 0.5rem 0;
+    }
 
     .empty-state {
       text-align: center;
@@ -435,6 +546,12 @@
       <span><span class="status-dot" id="agent-dot"></span>Incident pipeline</span>
       <span id="agent-drawer-label">—</span>
     </div>
+    <div class="agent-drawer-tabs" id="agent-drawer-tabs">
+      <button type="button" class="agent-tab active" data-tab="overview">Overview</button>
+      <button type="button" class="agent-tab" data-tab="stream">Stream</button>
+      <button type="button" class="agent-tab" data-tab="conversation">Conversation</button>
+      <button type="button" class="agent-tab" data-tab="prompt">Prompt</button>
+    </div>
     <div class="agent-drawer-body" id="agent-drawer-body"></div>
   </div>
 
@@ -444,6 +561,147 @@
     let selectedDetail = null;
     let lastError = null;
     let pollTimer = null;
+    let activeAgentTab = "overview";
+    let latestIncidentRecord = null;
+
+    function esc(s) {
+      return String(s)
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;");
+    }
+
+    function formatJson(value) {
+      try {
+        return esc(JSON.stringify(value, null, 2));
+      } catch {
+        return esc(String(value));
+      }
+    }
+
+    function eventSummary(ev) {
+      return ev.summary ?? ev.message ?? ev.type ?? "event";
+    }
+
+    function eventPayload(ev) {
+      if (ev.payload !== undefined) return ev.payload;
+      if (ev.message && ev.type !== "prompt") {
+        try { return JSON.parse(ev.message); } catch { return ev.message; }
+      }
+      return ev.summary ?? ev.message ?? ev;
+    }
+
+    function renderStreamEvents(events) {
+      if (!events?.length) {
+        return `<div class="panel-empty">No stream events yet. Live cloud runs populate this tab from <code>run.stream()</code>. DRY RUN shows the prompt on the Prompt tab.</div>`;
+      }
+
+      return `<div class="stream-list">${events.map((ev) => {
+        const type = ev.type || "event";
+        const badgeClass = ["thinking", "assistant", "tool_call", "user", "system", "conversation"].includes(type)
+          ? type
+          : "default";
+        const ts = ev.ts?.split("T")[1]?.slice(0, 8) || "";
+        const payload = eventPayload(ev);
+        const body = typeof payload === "string" && type === "prompt"
+          ? esc(payload)
+          : formatJson(payload);
+        return `<details class="stream-event" ${type === "thinking" || type === "tool_call" ? "open" : ""}>
+          <summary>
+            <span class="stream-badge ${badgeClass}">${esc(type)}</span>
+            <span>[${ts}] ${esc(eventSummary(ev))}</span>
+          </summary>
+          <pre>${body}</pre>
+        </details>`;
+      }).join("")}</div>`;
+    }
+
+    function renderConversationPanel(remediation) {
+      const conversation = remediation?.conversation;
+      if (!conversation) {
+        const fromEvent = remediation?.events?.find((e) => e.type === "conversation");
+        if (fromEvent?.payload) {
+          return `<div class="conversation-panel"><pre>${formatJson(fromEvent.payload)}</pre></div>`;
+        }
+        return `<div class="panel-empty">Conversation transcript appears after a live cloud run via <code>run.conversation()</code>.</div>`;
+      }
+      return `<div class="conversation-panel"><pre>${formatJson(conversation)}</pre></div>`;
+    }
+
+    function renderPromptPanel(remediation) {
+      const prompt = remediation?.prompt;
+      if (!prompt) {
+        return `<div class="panel-empty">Prompt not generated yet.</div>`;
+      }
+      return `<div class="prompt-panel"><pre>${esc(prompt)}</pre></div>`;
+    }
+
+    function renderOverviewPanel(record) {
+      const remediation = record.remediations?.[0];
+      const logs = (record.logs || []).map((l) => {
+        const cls = l.phase === "completed" ? "done" : l.phase === "error" ? "err" : "";
+        const ts = l.ts.split("T")[1]?.slice(0, 8) || "";
+        return `<div class="agent-log ${cls}">[${ts}] ${esc(l.message)}</div>`;
+      }).join("");
+
+      const links = [];
+      if (remediation?.agentId) {
+        links.push(`<a href="https://cursor.com/agents/${esc(remediation.agentId)}" target="_blank" rel="noopener">Open in Cursor ↗</a>`);
+      }
+      if (remediation?.runId) links.push(`run <code>${esc(remediation.runId)}</code>`);
+      if (remediation?.prUrl) {
+        links.push(`<a href="${esc(remediation.prUrl)}" target="_blank" rel="noopener">PR ↗</a>`);
+      }
+
+      const streamCount = remediation?.events?.filter((e) => !["prompt", "conversation"].includes(e.type)).length ?? 0;
+      const turnCount = Array.isArray(remediation?.conversation) ? remediation.conversation.length : 0;
+
+      return `
+        <div class="agent-meta">
+          <div><strong>${esc(record.plan?.strategy)}</strong> · ${esc(record.plan?.model)} · ${record.dryRun ? "DRY RUN" : "LIVE"}</div>
+          <div>${links.join(" · ") || "Waiting for agent IDs…"}</div>
+          <div>${streamCount} stream events · ${turnCount} conversation turns</div>
+        </div>
+        ${logs}
+      `;
+    }
+
+    function renderAgentDrawer(record) {
+      latestIncidentRecord = record;
+      const dot = document.getElementById("agent-dot");
+      const label = document.getElementById("agent-drawer-label");
+      const body = document.getElementById("agent-drawer-body");
+      const remediation = record.remediations?.[0];
+
+      label.textContent = record.status;
+      dot.classList.toggle("active", record.status === "remediating" || record.status === "received" || record.status === "triaged");
+      dot.classList.toggle("done", record.status === "completed");
+
+      document.querySelectorAll(".agent-tab").forEach((btn) => {
+        btn.classList.toggle("active", btn.dataset.tab === activeAgentTab);
+      });
+
+      let html = "";
+      switch (activeAgentTab) {
+        case "stream":
+          html = renderStreamEvents(remediation?.events?.filter((e) => e.type !== "conversation"));
+          break;
+        case "conversation":
+          html = renderConversationPanel(remediation);
+          break;
+        case "prompt":
+          html = renderPromptPanel(remediation);
+          break;
+        default:
+          html = renderOverviewPanel(record);
+      }
+      body.innerHTML = html;
+    }
+
+    function openAgentDrawer() {
+      document.getElementById("agent-drawer").classList.add("open");
+      document.getElementById("agent-dot").classList.add("active");
+    }
 
     const fmt = (cents) =>
       new Intl.NumberFormat("en-US", { style: "currency", currency: "USD" }).format(cents / 100);
@@ -538,38 +796,6 @@
       URL.revokeObjectURL(url);
     }
 
-    function openAgentDrawer() {
-      document.getElementById("agent-drawer").classList.add("open");
-      document.getElementById("agent-dot").classList.add("active");
-    }
-
-    function renderAgentDrawer(record) {
-      const dot = document.getElementById("agent-dot");
-      const label = document.getElementById("agent-drawer-label");
-      const body = document.getElementById("agent-drawer-body");
-
-      label.textContent = record.status;
-      dot.classList.toggle("active", record.status === "remediating" || record.status === "received");
-      dot.classList.toggle("done", record.status === "completed");
-
-      const logs = (record.logs || []).map((l) => {
-        const cls = l.phase === "completed" ? "done" : l.phase === "error" ? "err" : "";
-        const ts = l.ts.split("T")[1]?.slice(0, 8) || "";
-        return `<div class="agent-log ${cls}">[${ts}] ${l.message}</div>`;
-      }).join("");
-
-      const prompt = record.remediations?.[0]?.prompt;
-      const promptBlock = prompt
-        ? `<details style="margin-top:0.75rem;color:#64748b"><summary style="cursor:pointer;color:#93c5fd">Agent prompt</summary><pre style="margin-top:0.5rem;white-space:pre-wrap;font-size:0.7rem">${prompt.slice(0, 600)}…</pre></details>`
-        : "";
-
-      body.innerHTML = `
-        <div style="color:#93c5fd;margin-bottom:0.5rem">${record.plan?.strategy} · ${record.plan?.model} · ${record.dryRun ? "DRY RUN" : "LIVE"}</div>
-        ${logs}
-        ${promptBlock}
-      `;
-    }
-
     async function pollIncident(id) {
       try {
         const res = await fetch(`${ORCHESTRATOR_URL}/api/incidents/${id}`);
@@ -649,6 +875,14 @@
     document.getElementById("generate-btn").addEventListener("click", generateInvoice);
     document.getElementById("agent-drawer-toggle").addEventListener("click", () => {
       document.getElementById("agent-drawer").classList.toggle("open");
+    });
+
+    document.getElementById("agent-drawer-tabs").addEventListener("click", (e) => {
+      const btn = e.target.closest(".agent-tab");
+      if (!btn) return;
+      e.stopPropagation();
+      activeAgentTab = btn.dataset.tab;
+      if (latestIncidentRecord) renderAgentDrawer(latestIncidentRecord);
     });
 
     loadInvoiceList().then(() => selectInvoice("INV-1001"));
