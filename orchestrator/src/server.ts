@@ -1,8 +1,10 @@
 import express from "express";
 import { buildAgentContextPreview } from "./agent-context.js";
+import { computeIncidentFingerprint } from "./incident-fingerprint.js";
 import {
   appendLog,
   createIncidentRecord,
+  findIncidentByFingerprint,
   getIncident,
   listIncidents,
   markTriaged,
@@ -39,11 +41,7 @@ app.get("/api/incidents/:id", (req, res) => {
   res.json(record);
 });
 
-async function runRemediation(event: IncidentEvent): Promise<void> {
-  const plan = triage(event);
-  const agentContext = buildAgentContextPreview(plan);
-
-  createIncidentRecord(event, plan, DRY_RUN, agentContext);
+async function runRemediation(event: IncidentEvent, plan: ReturnType<typeof triage>): Promise<void> {
   markTriaged(event.id);
 
   appendLog(
@@ -87,25 +85,59 @@ async function runRemediation(event: IncidentEvent): Promise<void> {
   }
 }
 
+interface IngestedIncident {
+  duplicate: boolean;
+  incident: string;
+  plan: ReturnType<typeof triage>;
+  agentContext: ReturnType<typeof buildAgentContextPreview>;
+}
+
+function ingestIncident(event: IncidentEvent): IngestedIncident {
+  const fingerprint = computeIncidentFingerprint(event);
+  const existing = findIncidentByFingerprint(fingerprint);
+  if (existing) {
+    console.log(
+      `[orchestrator] Duplicate incident for fingerprint ${fingerprint} — reusing ${existing.id} (status=${existing.status})`,
+    );
+    return {
+      duplicate: true,
+      incident: existing.id,
+      plan: existing.plan,
+      agentContext: existing.agentContext,
+    };
+  }
+
+  const plan = triage(event);
+  const agentContext = buildAgentContextPreview(plan);
+  createIncidentRecord(event, plan, DRY_RUN, agentContext, fingerprint);
+
+  return { duplicate: false, incident: event.id, plan, agentContext };
+}
+
 app.post("/webhooks/incident", async (req, res) => {
   const event = req.body as IncidentEvent;
   if (!event?.id || !event?.implicatedServices) {
     return res.status(400).json({ error: "malformed_incident" });
   }
 
-  const plan = triage(event);
-  const agentContext = buildAgentContextPreview(plan);
+  const ingested = ingestIncident(event);
 
   res.status(202).json({
     accepted: true,
-    incident: event.id,
-    plan,
+    duplicate: ingested.duplicate,
+    incident: ingested.incident,
+    plan: ingested.plan,
     dryRun: DRY_RUN,
-    agentContext,
-    statusUrl: `/api/incidents/${event.id}`,
+    agentContext: ingested.agentContext,
+    statusUrl: `/api/incidents/${ingested.incident}`,
+    ...(ingested.duplicate && {
+      message: "Remediation already triggered for this error — reusing existing incident.",
+    }),
   });
 
-  void runRemediation(event);
+  if (!ingested.duplicate) {
+    void runRemediation(event, ingested.plan);
+  }
 });
 
 // Convenience endpoint for the demo UI: build an incident from a 500 response body.
@@ -133,19 +165,24 @@ app.post("/api/trigger-from-error", async (req, res) => {
     implicatedServices: [body.service ?? "billing-api"],
   };
 
-  const plan = triage(event);
-  const agentContext = buildAgentContextPreview(plan);
+  const ingested = ingestIncident(event);
 
   res.status(202).json({
     accepted: true,
-    incident: event.id,
-    plan,
+    duplicate: ingested.duplicate,
+    incident: ingested.incident,
+    plan: ingested.plan,
     dryRun: DRY_RUN,
-    agentContext,
-    statusUrl: `/api/incidents/${event.id}`,
+    agentContext: ingested.agentContext,
+    statusUrl: `/api/incidents/${ingested.incident}`,
+    ...(ingested.duplicate && {
+      message: "Remediation already triggered for this error — reusing existing incident.",
+    }),
   });
 
-  void runRemediation(event);
+  if (!ingested.duplicate) {
+    void runRemediation(event, ingested.plan);
+  }
 });
 
 app.listen(PORT, () => {
