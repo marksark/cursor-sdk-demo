@@ -31,7 +31,7 @@ export interface Invoice {
 const RAW_FROM_DATASTORE: unknown = [
   {
     id: "INV-1001",
-    customer: "Northwind Traders",
+    customer: "Charles Schwab",
     currency: "USD",
     lineItems: [
       { sku: "SEAT-PRO", description: "Pro seat (annual)", unitPriceCents: 120000, quantity: 25, discount: { rate: 0.1, reason: "Volume 25+" } },
@@ -40,7 +40,7 @@ const RAW_FROM_DATASTORE: unknown = [
   },
   {
     id: "INV-1002",
-    customer: "Contoso Ltd.",
+    customer: "Amazon, Inc.",
     currency: "USD",
     lineItems: [
       { sku: "SEAT-PRO", description: "Pro seat (annual)", unitPriceCents: 120000, quantity: 10, discount: { rate: 0.1, reason: "Volume 10+" } },
