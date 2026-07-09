@@ -39,6 +39,7 @@ export interface ServiceRemediationState {
 
 export interface IncidentRecord {
   id: string;
+  fingerprint: string;
   status: IncidentPhase;
   event: IncidentEvent;
   plan: RemediationPlan;
@@ -51,9 +52,16 @@ export interface IncidentRecord {
 }
 
 const incidents = new Map<string, IncidentRecord>();
+const incidentsByFingerprint = new Map<string, string>();
 
 function now(): string {
   return new Date().toISOString();
+}
+
+export function findIncidentByFingerprint(fingerprint: string): IncidentRecord | undefined {
+  const id = incidentsByFingerprint.get(fingerprint);
+  if (!id) return undefined;
+  return incidents.get(id);
 }
 
 export function createIncidentRecord(
@@ -61,9 +69,11 @@ export function createIncidentRecord(
   plan: RemediationPlan,
   dryRun: boolean,
   agentContext: AgentContextPreview,
+  fingerprint: string,
 ): IncidentRecord {
   const record: IncidentRecord = {
     id: event.id,
+    fingerprint,
     status: "received",
     event,
     plan,
@@ -81,6 +91,7 @@ export function createIncidentRecord(
     updatedAt: now(),
   };
   incidents.set(event.id, record);
+  incidentsByFingerprint.set(fingerprint, event.id);
   return record;
 }
 

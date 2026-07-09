@@ -16,8 +16,8 @@ invoiceRouter.get("/", (_req, res) => {
       id: inv.id,
       customer: inv.customer,
       currency: inv.currency,
-      issuedAt: inv.id === "INV-1001" ? "2026-06-01" : "2026-06-28",
-      dueDate: inv.id === "INV-1001" ? "2026-07-01" : "2026-07-28",
+      issuedAt: inv.id === "INV-1001" ? "2026-06-01" : "2026-06-01",
+      dueDate: inv.id === "INV-1001" ? "2026-06-15" : "2026-06-15",
       totalCents,
       status: totalCents !== null ? "ready" : "pending",
     };

@@ -297,7 +297,7 @@
       bottom: 0;
       right: 1.5rem;
       width: min(920px, calc(100vw - 3rem));
-      max-height: 78vh;
+      max-height: 85vh;
       background: #0f172a;
       color: #e2e8f0;
       border: 1px solid #1e293b;
@@ -561,6 +561,8 @@
     let selectedDetail = null;
     let lastError = null;
     let pollTimer = null;
+    let activeIncidentId = null;
+    let activeErrorFingerprint = null;
     let activeAgentTab = "overview";
     let latestIncidentRecord = null;
 
@@ -811,9 +813,20 @@
       } catch { /* orchestrator offline */ }
     }
 
+    function errorFingerprint(err) {
+      return [err.service ?? "", err.message ?? "", err.culprit ?? "", err.stack ?? ""].join("\n");
+    }
+
     async function fireAgent() {
       if (!lastError) return;
       openAgentDrawer();
+
+      const fingerprint = errorFingerprint(lastError);
+      if (activeErrorFingerprint === fingerprint && activeIncidentId) {
+        if (!pollTimer) pollTimer = setInterval(() => pollIncident(activeIncidentId), 800);
+        void pollIncident(activeIncidentId);
+        return;
+      }
 
       try {
         const res = await fetch(`${ORCHESTRATOR_URL}/api/trigger-from-error`, {
@@ -823,6 +836,15 @@
         });
         const data = await res.json();
         if (!res.ok) throw new Error(data.error);
+
+        activeErrorFingerprint = fingerprint;
+        activeIncidentId = data.incident;
+
+        if (data.duplicate) {
+          void pollIncident(data.incident);
+          if (!pollTimer) pollTimer = setInterval(() => pollIncident(data.incident), 800);
+          return;
+        }
 
         renderAgentDrawer({
           status: "received",
