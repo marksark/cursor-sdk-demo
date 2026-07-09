@@ -15,14 +15,26 @@ export interface IncidentLogEntry {
   message: string;
 }
 
+export interface ServiceStreamEvent {
+  ts: string;
+  type: string;
+  /** Short one-line summary for list views */
+  summary: string;
+  /** Full SDK stream event or structured payload */
+  payload?: unknown;
+}
+
 export interface ServiceRemediationState {
   service: string;
   status: RemediationResult["status"];
   prompt: string;
+  agentId?: string;
   runId?: string;
   prUrl?: string;
   error?: string;
-  events: Array<{ ts: string; type: string; message: string }>;
+  events: ServiceStreamEvent[];
+  /** Structured transcript from run.conversation() after the run finishes */
+  conversation?: unknown;
 }
 
 export interface IncidentRecord {
@@ -126,13 +138,27 @@ export function appendServiceEvent(
   id: string,
   service: string,
   type: string,
-  message: string,
+  summary: string,
+  payload?: unknown,
 ): void {
   const record = incidents.get(id);
   if (!record) return;
   const svc = record.remediations.find((r) => r.service === service);
   if (!svc) return;
-  svc.events.push({ ts: now(), type, message });
+  svc.events.push({ ts: now(), type, summary, payload });
+  record.updatedAt = now();
+}
+
+export function setServiceConversation(
+  id: string,
+  service: string,
+  conversation: unknown,
+): void {
+  const record = incidents.get(id);
+  if (!record) return;
+  const svc = record.remediations.find((r) => r.service === service);
+  if (!svc) return;
+  svc.conversation = conversation;
   record.updatedAt = now();
 }
 

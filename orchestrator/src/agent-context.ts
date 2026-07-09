@@ -9,7 +9,9 @@ export interface AgentContextPreview {
   autoCreatePR: boolean;
   requiresHumanApproval: boolean;
   autoLoadedSkills: Array<{ name: string; path: string; summary: string }>;
+  repoSubagents: Array<{ name: string; path: string; summary: string }>;
   policyHooks: Array<{ name: string; path: string; purpose: string }>;
+  mcpServers: Array<{ name: string; source: string; purpose: string }>;
   constraints: string[];
 }
 
@@ -26,6 +28,25 @@ export function buildAgentContextPreview(plan: RemediationPlan): AgentContextPre
         path: ".cursor/skills/incident-triage/SKILL.md",
         summary:
           "Reproduce-first, test-first remediation procedure. Enforces minimal diff and scoped changes.",
+      },
+    ],
+    repoSubagents: [
+      {
+        name: "scope-checker",
+        path: ".cursor/agents/scope-checker.md",
+        summary: "Read-only advisor: confirms edits stay inside demo-app/ scope.",
+      },
+    ],
+    mcpServers: [
+      {
+        name: "sentry",
+        source: ".cursor/mcp.json (copy from mcp.json.example)",
+        purpose: "Pull real issue context — replaces simulated incident-source.",
+      },
+      {
+        name: "slack",
+        source: ".cursor/mcp.json (copy from mcp.json.example)",
+        purpose: "Post PR summary to on-call channel after remediation.",
       },
     ],
     policyHooks: [
