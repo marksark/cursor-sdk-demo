@@ -563,6 +563,7 @@
     let pollTimer = null;
     let activeIncidentId = null;
     let activeErrorFingerprint = null;
+    let completionToastShownFor = null;
     let activeAgentTab = "overview";
     let latestIncidentRecord = null;
 
@@ -798,19 +799,36 @@
       URL.revokeObjectURL(url);
     }
 
+    function clearActiveIncident() {
+      activeIncidentId = null;
+      activeErrorFingerprint = null;
+    }
+
     async function pollIncident(id) {
       try {
         const res = await fetch(`${ORCHESTRATOR_URL}/api/incidents/${id}`);
-        if (!res.ok) return;
+        if (!res.ok) {
+          if (activeIncidentId === id) clearActiveIncident();
+          clearInterval(pollTimer);
+          pollTimer = null;
+          return;
+        }
         const record = await res.json();
         renderAgentDrawer(record);
         if (record.status === "completed" || record.status === "error") {
           clearInterval(pollTimer);
           pollTimer = null;
-          showToast("info", "Remediation pipeline complete",
-            record.dryRun ? "Dry run finished — prompt logged, no cloud agent started." : "Cloud agent finished.");
+          if (completionToastShownFor !== id) {
+            completionToastShownFor = id;
+            showToast("info", "Remediation pipeline complete",
+              record.dryRun ? "Dry run finished — prompt logged, no cloud agent started." : "Cloud agent finished.");
+          }
         }
-      } catch { /* orchestrator offline */ }
+      } catch {
+        if (activeIncidentId === id) clearActiveIncident();
+        clearInterval(pollTimer);
+        pollTimer = null;
+      }
     }
 
     function errorFingerprint(err) {
