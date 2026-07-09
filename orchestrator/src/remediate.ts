@@ -67,7 +67,7 @@ function logAgentContext(service: string, plan: RemediationPlan): void {
   console.log(`└──────────────────────────────────────────────────────────────`);
 }
 
-// Runs one cloud agent per service in the plan (fan-out) or a single agent.
+// Runs one cloud agent per service in the plan (fan-out) or a single agent
 export async function remediate(
   event: IncidentEvent,
   plan: RemediationPlan,
