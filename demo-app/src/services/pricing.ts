@@ -17,7 +17,8 @@ export interface InvoiceSummary {
 // -> the route returns HTTP 500. This is the incident the agent will remediate.
 function lineTotals(item: LineItem): { gross: number; discount: number } {
   const gross = item.unitPriceCents * item.quantity;
-  const discount = Math.round(gross * item.discount.rate); // <-- throws at runtime when the row has no discount
+  const rate = item.discount?.rate ?? 0;
+  const discount = Math.round(gross * rate);
   return { gross, discount };
 }
 
