@@ -16,7 +16,7 @@ export interface LineItem {
   description: string;
   unitPriceCents: number;
   quantity: number;
-  discount: Discount; // the schema claims this is always present
+  discount?: Discount; // optional at runtime when datastore rows omit it
 }
 
 export interface Invoice {
