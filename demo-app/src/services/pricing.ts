@@ -8,16 +8,10 @@ export interface InvoiceSummary {
   totalCents: number;
 }
 
-// Computes the discounted total for a single line item.
-//
-// BUG (planted): the type promises `item.discount` is always present, so this
-// reads `item.discount.rate` unconditionally and TypeScript is happy. But the
-// datastore has rows without a discount (schema drift), so at runtime:
-//   TypeError: Cannot read properties of undefined (reading 'rate')
-// -> the route returns HTTP 500. This is the incident the agent will remediate.
 function lineTotals(item: LineItem): { gross: number; discount: number } {
   const gross = item.unitPriceCents * item.quantity;
-  const discount = Math.round(gross * item.discount.rate); // <-- throws at runtime when the row has no discount
+  const rate = item.discount?.rate ?? 0;
+  const discount = Math.round(gross * rate);
   return { gross, discount };
 }
 
